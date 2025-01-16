@@ -34,8 +34,6 @@
 //! // Be sure to free block of memory (system specific) at the end.
 //! ```
 
-// `const_fn` is needed for `spin::Once`.
-#![cfg_attr(feature = "no_std", feature(const_fn))]
 #![cfg_attr(all(feature = "no_std", not(windows)), allow(unused_extern_crates))]
 
 extern crate page_size;
@@ -53,6 +51,7 @@ extern crate kernel32;
 #[cfg(feature = "no_std")]
 extern crate spin;
 
+#[derive(Debug, Clone, Copy)]
 pub enum Advice {
     /// No special usage
     Normal,
@@ -81,14 +80,19 @@ pub fn advise(address: *mut (), length: usize, advice: Advice)
 }
 
 /// The possible errors returned by `advise()`
+#[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum MemAdviseError {
     /// Passed null pointer in `address` field
+    #[error("Passed null pointer in `address` field")]
     NullAddress,
     /// Invalid value for `length`
+    #[error("Invalid value for `length`")]
     InvalidLength,
     /// `address` is not properly aligned
+    #[error("`address` is not properly aligned")]
     UnalignedAddress,
     /// Memory block is invalid for some other reason
+    #[error("Memory block is invalid for some other reason")]
     InvalidRange,
 }
 
@@ -103,11 +107,6 @@ fn advise_helper(address: *mut (), length: usize, advice: Advice)
 
 #[cfg(unix)]
 mod unix {
-    #[cfg(feature = "no_std")]
-    use core::ptr;
-    #[cfg(not(feature = "no_std"))]
-    use std::ptr;
-
     #[cfg(target_os = "android")]
     use libc::{c_void, madvise, MADV_DONTNEED, MADV_NORMAL, MADV_RANDOM, MADV_SEQUENTIAL, MADV_WILLNEED};
     #[cfg(not(target_os = "android"))]
@@ -124,7 +123,7 @@ mod unix {
                   -> Result<(), MemAdviseError>
     {
         // Check for null pointer.
-        if address == ptr::null_mut() {
+        if address.is_null() {
             return Err(MemAdviseError::NullAddress);
         }
 
@@ -171,6 +170,10 @@ mod unix {
     mod tests {
         use libc::{MAP_ANON, MAP_PRIVATE, PROT_READ, mmap, munmap};
         
+        #[cfg(feature = "no_std")]
+        use core::ptr;
+        #[cfg(not(feature = "no_std"))]
+        use std::ptr;
         use super::*;
 
         // Anonymous maps are not part of the POSIX standard, but they are widely available.
@@ -269,11 +272,6 @@ fn advise_helper(address: *mut (), length: usize, advice: Advice)
 #[cfg(windows)]
 mod windows {
     #[cfg(feature = "no_std")]
-    use core::ptr;
-    #[cfg(not(feature = "no_std"))]
-    use std::ptr;
-
-    #[cfg(feature = "no_std")]
     use core::mem;
     #[cfg(not(feature = "no_std"))]
     use std::mem;
@@ -305,7 +303,7 @@ mod windows {
                   -> Result<(), MemAdviseError>
     {
         // Check for null pointer.
-        if address == ptr::null_mut() {
+        if address.is_null() {
             return Err(MemAdviseError::NullAddress);
         }
 
